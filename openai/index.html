@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Cost-Effectiveness Analysis: Supimab vs Dupimab</title>
+    <script src="https://d3js.org/d3.v6.min.js"></script>
+    <style>
+        /* Studio Ghibli inspired palette */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #fefcf7;
+            color: #333;
+            margin: 20px;
+        }
+        h1, h2 {
+            font-family: 'Georgia', serif;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        .dashboard-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-around;
+        }
+        .chart {
+            background: #fff8f0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            margin: 10px;
+        }
+        .chart svg {
+            overflow: visible;
+        }
+        .summary {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Cost-Effectiveness Analysis: Supimab vs Dupimab</h1>
+        <p>Simulation results for stroke prevention treatment.</p>
+    </div>
+    <div class="summary">
+        <h2>Summary Metrics</h2>
+        <p id="icer"></p>
+        <p id="dupimab_summary"></p>
+        <p id="supimab_summary"></p>
+    </div>
+    <div class="dashboard-container">
+        <div id="costChart" class="chart"></div>
+        <div id="qalyChart" class="chart"></div>
+        <div id="scatterChart" class="chart"></div>
+    </div>
+    
+    <script>
+        // Set up dimensions for charts
+        const width = 400, height = 300, margin = {top: 30, right: 30, bottom: 50, left: 60};
+        
+        // Load the simulation results JSON file
+        d3.json("simulation_results.json").then(data => {
+            // Display summary metrics
+            const summary = data.summary;
+            const icer = summary.icer.toFixed(2);
+            document.getElementById("icer").innerHTML = `<strong>ICER: £${icer} per QALY</strong>`;
+            
+            // Display summaries for each treatment
+            const dup = summary.dupimab;
+            const sup = summary.supimab;
+            document.getElementById("dupimab_summary").innerHTML = `Dupimab - Mean Cost: £${dup.mean_cost.toFixed(2)}, Mean QALYs: ${dup.mean_qalys.toFixed(2)}`;
+            document.getElementById("supimab_summary").innerHTML = `Supimab - Mean Cost: £${sup.mean_cost.toFixed(2)}, Mean QALYs: ${sup.mean_qalys.toFixed(2)}`;
+            
+            // ---------------------------
+            // Bar Chart for Average Cost
+            // ---------------------------
+            const costData = [
+                {treatment: "Dupimab", cost: dup.mean_cost},
+                {treatment: "Supimab", cost: sup.mean_cost}
+            ];
+            
+            const svgCost = d3.select("#costChart")
+                .append("svg")
+                .attr("width", width)
+                .attr("height", height);
+            
+            const xScaleCost = d3.scaleBand()
+                .domain(costData.map(d => d.treatment))
+                .range([margin.left, width - margin.right])
+                .padding(0.4);
+            
+            const yScaleCost = d3.scaleLinear()
+                .domain([0, d3.max(costData, d => d.cost) * 1.1])
+                .range([height - margin.bottom, margin.top]);
+            
+            svgCost.append("g")
+                .attr("transform", `translate(0,${height - margin.bottom})`)
+                .call(d3.axisBottom(xScaleCost));
+            
+            svgCost.append("g")
+                .attr("transform", `translate(${margin.left},0)`)
+                .call(d3.axisLeft(yScaleCost));
+            
+            svgCost.selectAll(".bar")
+                .data(costData)
+                .enter()
+                .append("rect")
+                .attr("class", "bar")
+                .attr("x", d => xScaleCost(d.treatment))
+                .attr("y", d => yScaleCost(d.cost))
+                .attr("width", xScaleCost.bandwidth())
+                .attr("height", d => height - margin.bottom - yScaleCost(d.cost))
+                .attr("fill", "#8ca0a0");
+            
+            svgCost.append("text")
+                .attr("x", width / 2)
+                .attr("y", margin.top)
+                .attr("text-anchor", "middle")
+                .style("font-size", "16px")
+                .text("Average Cost per Patient");
+            
+            // ---------------------------
+            // Bar Chart for Average QALYs
+            // ---------------------------
+            const qalyData = [
+                {treatment: "Dupimab", qaly: dup.mean_qalys},
+                {treatment: "Supimab", qaly: sup.mean_qalys}
+            ];
+            
+            const svgQaly = d3.select("#qalyChart")
+                .append("svg")
+                .attr("width", width)
+                .attr("height", height);
+            
+            const xScaleQaly = d3.scaleBand()
+                .domain(qalyData.map(d => d.treatment))
+                .range([margin.left, width - margin.right])
+                .padding(0.4);
+            
+            const yScaleQaly = d3.scaleLinear()
+                .domain([0, d3.max(qalyData, d => d.qaly) * 1.1])
+                .range([height - margin.bottom, margin.top]);
+            
+            svgQaly.append("g")
+                .attr("transform", `translate(0,${height - margin.bottom})`)
+                .call(d3.axisBottom(xScaleQaly));
+            
+            svgQaly.append("g")
+                .attr("transform", `translate(${margin.left},0)`)
+                .call(d3.axisLeft(yScaleQaly));
+            
+            svgQaly.selectAll(".bar")
+                .data(qalyData)
+                .enter()
+                .append("rect")
+                .attr("class", "bar")
+                .attr("x", d => xScaleQaly(d.treatment))
+                .attr("y", d => yScaleQaly(d.qaly))
+                .attr("width", xScaleQaly.bandwidth())
+                .attr("height", d => height - margin.bottom - yScaleQaly(d.qaly))
+                .attr("fill", "#d8a48f");
+            
+            svgQaly.append("text")
+                .attr("x", width / 2)
+                .attr("y", margin.top)
+                .attr("text-anchor", "middle")
+                .style("font-size", "16px")
+                .text("Average QALYs per Patient");
+            
+            // --------------------------------------------
+            // Scatter Plot: Individual Cost vs QALYs
+            // --------------------------------------------
+            const individuals = [].concat(
+                data.individuals.dupimab.map(d => ({treatment: "Dupimab", cost: d.cost, qaly: d.qalys})),
+                data.individuals.supimab.map(d => ({treatment: "Supimab", cost: d.cost, qaly: d.qalys}))
+            );
+            
+            const svgScatter = d3.select("#scatterChart")
+                .append("svg")
+                .attr("width", width)
+                .attr("height", height);
+            
+            const xScaleScatter = d3.scaleLinear()
+                .domain([0, d3.max(individuals, d => d.qaly) * 1.1])
+                .range([margin.left, width - margin.right]);
+            
+            const yScaleScatter = d3.scaleLinear()
+                .domain([0, d3.max(individuals, d => d.cost) * 1.1])
+                .range([height - margin.bottom, margin.top]);
+            
+            svgScatter.append("g")
+                .attr("transform", `translate(0,${height - margin.bottom})`)
+                .call(d3.axisBottom(xScaleScatter));
+            
+            svgScatter.append("g")
+                .attr("transform", `translate(${margin.left},0)`)
+                .call(d3.axisLeft(yScaleScatter));
+            
+            svgScatter.selectAll("circle")
+                .data(individuals)
+                .enter()
+                .append("circle")
+                .attr("cx", d => xScaleScatter(d.qaly))
+                .attr("cy", d => yScaleScatter(d.cost))
+                .attr("r", 3)
+                .attr("fill", d => d.treatment === "Dupimab" ? "#8ca0a0" : "#d8a48f")
+                .attr("opacity", 0.6);
+            
+            svgScatter.append("text")
+                .attr("x", width / 2)
+                .attr("y", margin.top)
+                .attr("text-anchor", "middle")
+                .style("font-size", "16px")
+                .text("Cost vs QALY Scatter Plot");
+            
+            // Add axis labels for scatter plot
+            svgScatter.append("text")
+                .attr("x", width / 2)
+                .attr("y", height - 10)
+                .attr("text-anchor", "middle")
+                .style("font-size", "12px")
+                .text("QALYs");
+            
+            svgScatter.append("text")
+                .attr("transform", "rotate(-90)")
+                .attr("x", -height / 2)
+                .attr("y", 15)
+                .attr("text-anchor", "middle")
+                .style("font-size", "12px")
+                .text("Cost (£)");
+        }).catch(error => {
+            console.error("Error loading simulation results:", error);
+        });
+    </script>
+</body>
+</html>
+

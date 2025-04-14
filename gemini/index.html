@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supimab vs. Dupimab Cost-Effectiveness Simulation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Custom styles inspired by Studio Ghibli palettes */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* Light blue-grey background */
+        }
+        .ghibli-container {
+            background-color: #ffffff; /* White container background */
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+            padding: 2rem;
+            margin: 2rem auto;
+            max-width: 1100px; /* Increased max-width for more charts */
+        }
+        .ghibli-title {
+            color: #3b5998; /* Deep blue */
+            font-weight: 700;
+            border-bottom: 2px solid #a0d9d4; /* Light teal accent */
+            padding-bottom: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .ghibli-subtitle {
+            color: #5c6e6e; /* Dark slate grey */
+            font-weight: 600;
+            margin-top: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        .ghibli-text {
+            color: #4a4a4a; /* Dark grey text */
+            line-height: 1.6;
+        }
+        .ghibli-button {
+            background-color: #8ab0a9; /* Muted green */
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: background-color 0.3s ease;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+        .ghibli-button:hover {
+            background-color: #6a908a; /* Darker muted green */
+        }
+        .ghibli-result {
+            background-color: #f5f5dc; /* Beige/cream */
+            padding: 1rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+            border-left: 4px solid #d8a090; /* Soft terracotta accent */
+            font-size: 0.9rem; /* Slightly smaller font for results */
+        }
+        .ghibli-result strong {
+            color: #3b5998; /* Deep blue */
+        }
+        /* D3 Chart Styling */
+        .axis path,
+        .axis line {
+            fill: none;
+            stroke: #5c6e6e; /* Dark slate grey */
+            shape-rendering: crispEdges;
+        }
+        .axis text {
+            font-family: 'Inter', sans-serif;
+            font-size: 11px; /* Smaller axis text */
+            fill: #5c6e6e; /* Dark slate grey */
+        }
+        .bar-dupimab {
+            fill: #a0d9d4; /* Light teal */
+        }
+        .bar-supimab {
+            fill: #8ab0a9; /* Muted green */
+        }
+        .grid line {
+            stroke: #e0e0e0; /* Light grey grid lines */
+            stroke-opacity: 0.7;
+            shape-rendering: crispEdges;
+        }
+        .tooltip {
+            position: absolute;
+            text-align: center;
+            padding: 8px;
+            font-size: 12px;
+            background: rgba(92, 110, 110, 0.9); /* Dark slate grey semi-transparent */
+            color: white;
+            border-radius: 4px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            z-index: 10; /* Ensure tooltip is on top */
+        }
+        .chart-title {
+             font-size: 0.9rem; /* Smaller chart titles */
+             font-weight: 600;
+             text-align: center;
+             margin-bottom: 0.5rem;
+             color: #4a4a4a;
+        }
+    </style>
+</head>
+<body class="p-4">
+
+    <div class="ghibli-container">
+        <h1 class="text-3xl ghibli-title">Cost-Effectiveness Simulation: Supimab vs. Dupimab</h1>
+        <p class="ghibli-text mb-6">
+            This dashboard presents the results of an enhanced Discrete Event Simulation (DES) comparing Supimab vs. Dupimab for stroke prevention. The model now tracks hospitalisations and time spent in health states ('Healthy', 'Post-Stroke') over a 50-year horizon.
+        </p>
+
+        <div class="mb-6">
+            <button id="run-simulation-btn" class="ghibli-button">Run Simulation</button>
+            <span id="loading-indicator" class="ml-4 ghibli-text" style="display: none;">Running simulation... This may take a moment.</span>
+        </div>
+
+        <div id="results-section" style="display: none;">
+            <h2 class="text-2xl ghibli-subtitle">Simulation Results (Average per Patient)</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div class="ghibli-result">
+                    <strong>Dupimab:</strong><br>
+                    Avg. Discounted Cost: <span id="dupimab-cost">£0</span><br>
+                    Avg. Discounted QALYs: <span id="dupimab-qaly">0</span><br>
+                    Avg. Hospitalisations: <span id="dupimab-hosp">0</span><br>
+                    Avg. Time Healthy (yrs): <span id="dupimab-time-healthy">0</span><br>
+                    Avg. Time Post-Stroke (yrs): <span id="dupimab-time-poststroke">0</span>
+                </div>
+                <div class="ghibli-result">
+                    <strong>Supimab:</strong><br>
+                    Avg. Discounted Cost: <span id="supimab-cost">£0</span><br>
+                    Avg. Discounted QALYs: <span id="supimab-qaly">0</span><br>
+                    Avg. Hospitalisations: <span id="supimab-hosp">0</span><br>
+                    Avg. Time Healthy (yrs): <span id="supimab-time-healthy">0</span><br>
+                    Avg. Time Post-Stroke (yrs): <span id="supimab-time-poststroke">0</span>
+                </div>
+                 <div class="ghibli-result">
+                    <strong>Incremental (Supimab vs. Dupimab):</strong><br>
+                    Incremental Cost: <span id="inc-cost">£0</span><br>
+                    Incremental QALYs: <span id="inc-qaly">0</span><br>
+                    ICER (Cost per QALY): <span id="icer">N/A</span><br>
+                    Incr. Hospitalisations: <span id="inc-hosp">0</span><br>
+                    Incr. Time Healthy (yrs): <span id="inc-time-healthy">0</span>
+                </div>
+            </div>
+
+            <h2 class="text-2xl ghibli-subtitle">Visual Comparison</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div>
+                    <h3 class="chart-title">Avg. Discounted Costs</h3>
+                    <div id="cost-chart"></div>
+                </div>
+                <div>
+                    <h3 class="chart-title">Avg. Discounted QALYs</h3>
+                    <div id="qaly-chart"></div>
+                </div>
+                 <div>
+                    <h3 class="chart-title">Avg. Hospitalisations</h3>
+                    <div id="hospitalisation-chart"></div>
+                </div>
+                 <div>
+                    <h3 class="chart-title">Avg. Time Healthy (Years)</h3>
+                    <div id="healthy-time-chart"></div>
+                </div>
+            </div>
+        </div>
+         <div id="tooltip" class="tooltip"></div>
+    </div>
+
+    <script>
+        // --- Simulation Parameters (Fictional) ---
+        const PARAMS = {
+            N_PATIENTS: 1000,       // Number of patients per arm
+            START_AGE: 50,         // Starting age in years
+            HORIZON: 50,           // Simulation horizon in years
+            DISCOUNT_RATE: 0.035,  // Annual discount rate for costs and QALYs
+
+            // Treatment Costs
+            COST_DUPIMAB_ANNUAL: 5000,
+            COST_SUPIMAB_ANNUAL: 8000,
+
+            // Event Costs
+            COST_STROKE_EVENT: 20000,       // Cost in the year of the stroke
+            COST_POST_STROKE_ANNUAL: 3000, // Ongoing annual cost after stroke
+            COST_HOSPITALISATION: 4000,    // Cost per hospitalisation event
+
+            // Health State Utilities
+            UTIL_HEALTHY: 0.85,
+            UTIL_POST_STROKE: 0.60,
+            // UTIL_DECREMENT_HOSPITALISATION: 0.1, // Optional: Utility decrement during hospitalisation (not implemented in QALY calc for simplicity)
+
+            // Event Rates (Lambda for exponential distribution - events per year)
+            RATE_STROKE_BASE: 0.05,        // Baseline annual stroke rate (on Dupimab)
+            HR_STROKE_SUPIMAB: 0.7,       // Hazard Ratio for stroke on Supimab vs Dupimab
+            RATE_DEATH_POST_STROKE: 0.15, // Annual death rate after a stroke
+            RATE_HOSPITALISATION_HEALTHY: 0.02, // Annual rate of hospitalisation when healthy
+            RATE_HOSPITALISATION_POST_STROKE: 0.10, // Annual rate of hospitalisation when post-stroke
+
+            // Background Mortality Rate Function (simplified age-dependent)
+            getBackgroundMortalityRate: (age) => 0.01 * Math.exp(0.05 * (Math.max(0, age - PARAMS.START_AGE)))
+        };
+
+        // --- Helper Functions ---
+
+        // Generates a random time to event from an exponential distribution
+        function sampleExponential(lambda) {
+            // Added check for invalid lambda values
+            if (lambda <= 0 || !isFinite(lambda) || isNaN(lambda)) return Infinity;
+            return -Math.log(Math.random()) / lambda;
+        }
+
+        // Calculates the discount factor for a given time
+        function discountFactor(time) {
+            return 1 / Math.pow(1 + PARAMS.DISCOUNT_RATE, time);
+        }
+
+        // --- Discrete Event Simulation Core Logic ---
+
+        function runPatientSimulation(treatmentType) {
+            let currentTime = 0;
+            let currentAge = PARAMS.START_AGE;
+            let healthState = 'Healthy'; // 'Healthy', 'Post-Stroke'
+            let totalDiscountedCost = 0;
+            let totalDiscountedQaly = 0;
+            let nHospitalisations = 0; // Counter for hospitalisations
+            let timeInHealthy = 0;     // Undiscounted time in Healthy state
+            let timeInPostStroke = 0;  // Undiscounted time in Post-Stroke state
+
+            const annualDrugCost = treatmentType === 'Supimab' ? PARAMS.COST_SUPIMAB_ANNUAL : PARAMS.COST_DUPIMAB_ANNUAL;
+            const strokeRate = treatmentType === 'Supimab' ? PARAMS.RATE_STROKE_BASE * PARAMS.HR_STROKE_SUPIMAB : PARAMS.RATE_STROKE_BASE;
+
+            while (currentTime < PARAMS.HORIZON) {
+                // --- Determine Current Rates Based on State ---
+                const backgroundMortalityRate = PARAMS.getBackgroundMortalityRate(currentAge);
+                const hospitalisationRate = healthState === 'Healthy' ? PARAMS.RATE_HOSPITALISATION_HEALTHY : PARAMS.RATE_HOSPITALISATION_POST_STROKE;
+                const postStrokeDeathRate = healthState === 'Post-Stroke' ? PARAMS.RATE_DEATH_POST_STROKE : 0;
+                const currentStrokeRate = healthState === 'Healthy' ? strokeRate : 0; // Can only have first stroke when healthy
+
+                // --- Determine Time to Next Potential Events ---
+                const timeToStroke = sampleExponential(currentStrokeRate);
+                const timeToBackgroundDeath = sampleExponential(backgroundMortalityRate);
+                const timeToPostStrokeDeath = sampleExponential(postStrokeDeathRate);
+                const timeToHospitalisation = sampleExponential(hospitalisationRate);
+
+                // --- Determine Next Event and Time Step ---
+                const timeToNextEvent = Math.min(
+                    timeToStroke,
+                    timeToBackgroundDeath,
+                    timeToPostStrokeDeath,
+                    timeToHospitalisation
+                );
+                let timeStep = timeToNextEvent;
+
+                // *** FIX START ***
+                // Declare finalEventTime *before* the if/else block
+                let finalEventTime;
+                // *** FIX END ***
+
+                // Ensure simulation doesn't exceed horizon
+                if (currentTime + timeStep >= PARAMS.HORizon) {
+                    timeStep = PARAMS.HORIZON - currentTime;
+                    // Set next event time beyond horizon to prevent processing event exactly at horizon end
+                    finalEventTime = Infinity; // Assign value
+                } else {
+                    finalEventTime = currentTime + timeStep; // Assign value
+                }
+
+
+                // --- Accrue Costs, QALYs, and State Times for the Interval ---
+                // Check for valid timeStep to prevent issues if timeToNextEvent was Infinity
+                 if (timeStep > 0 && isFinite(timeStep)) {
+                    const intervalUtility = healthState === 'Healthy' ? PARAMS.UTIL_HEALTHY : PARAMS.UTIL_POST_STROKE;
+                    const intervalAnnualCost = annualDrugCost + (healthState === 'Post-Stroke' ? PARAMS.COST_POST_STROKE_ANNUAL : 0);
+
+                    // Discounting (midpoint approximation)
+                    const midPointTime = currentTime + timeStep / 2;
+                    const df = discountFactor(midPointTime);
+                    totalDiscountedQaly += intervalUtility * timeStep * df;
+                    totalDiscountedCost += intervalAnnualCost * timeStep * df;
+
+                    // Accumulate undiscounted time in states
+                    if (healthState === 'Healthy') {
+                        timeInHealthy += timeStep;
+                    } else {
+                        timeInPostStroke += timeStep;
+                    }
+                } else if (timeStep <= 0) {
+                     // If timestep is zero or negative, break to avoid infinite loop
+                     console.warn("Zero or negative timestep encountered, breaking loop. CurrentTime:", currentTime);
+                     break;
+                 }
+
+
+                // --- Advance Time and Age ---
+                currentTime += timeStep;
+                currentAge += timeStep;
+
+                 // --- Process Event if Occurred Within Horizon ---
+                 // Check against the calculated finalEventTime
+                 // Also ensure currentTime is strictly less than HORIZON to avoid processing at the very end
+                if (currentTime < PARAMS.HORIZON && isFinite(finalEventTime) && finalEventTime !== Infinity) {
+                    // Check which event's time matches the finalEventTime
+                    // Use a small tolerance for floating point comparison if necessary, but direct comparison often works here
+                    if (Math.abs(finalEventTime - (currentTime)) < 1e-9) { // Check if the event time matches current time after step
+                        if (timeToHospitalisation === timeToNextEvent) {
+                            nHospitalisations++;
+                            totalDiscountedCost += PARAMS.COST_HOSPITALISATION * discountFactor(currentTime);
+                        } else if (timeToStroke === timeToNextEvent) {
+                            healthState = 'Post-Stroke';
+                            totalDiscountedCost += PARAMS.COST_STROKE_EVENT * discountFactor(currentTime);
+                        } else if (timeToBackgroundDeath === timeToNextEvent || timeToPostStrokeDeath === timeToNextEvent) {
+                            // Death event - end simulation for this patient
+                            break;
+                        }
+                     }
+                } else if (currentTime >= PARAMS.HORIZON) {
+                    // Ensure loop terminates if horizon is reached exactly
+                    break;
+                }
+
+
+            } // End while loop (patient simulation)
+
+            return {
+                totalDiscountedCost,
+                totalDiscountedQaly,
+                nHospitalisations,
+                timeInHealthy,
+                timeInPostStroke
+            };
+        }
+
+        // --- Main Simulation Function ---
+        function runFullSimulation() {
+            const results = {
+                Dupimab: { costs: [], qalys: [], hosps: [], timeH: [], timePS: [] },
+                Supimab: { costs: [], qalys: [], hosps: [], timeH: [], timePS: [] }
+            };
+
+            console.log("Starting Dupimab simulations...");
+            for (let i = 0; i < PARAMS.N_PATIENTS; i++) {
+                try { // Add try-catch for individual patient simulation robustness
+                    const patientResult = runPatientSimulation('Dupimab');
+                    results.Dupimab.costs.push(patientResult.totalDiscountedCost);
+                    results.Dupimab.qalys.push(patientResult.totalDiscountedQaly);
+                    results.Dupimab.hosps.push(patientResult.nHospitalisations);
+                    results.Dupimab.timeH.push(patientResult.timeInHealthy);
+                    results.Dupimab.timePS.push(patientResult.timeInPostStroke);
+                } catch (error) {
+                    console.error(`Error simulating Dupimab patient ${i}:`, error);
+                    // Optionally skip this patient or handle error differently
+                }
+                if ((i + 1) % 100 === 0) console.log(`Dupimab patient ${i + 1}/${PARAMS.N_PATIENTS} simulated.`);
+            }
+
+            console.log("Starting Supimab simulations...");
+            for (let i = 0; i < PARAMS.N_PATIENTS; i++) {
+                 try { // Add try-catch for individual patient simulation robustness
+                    const patientResult = runPatientSimulation('Supimab');
+                    results.Supimab.costs.push(patientResult.totalDiscountedCost);
+                    results.Supimab.qalys.push(patientResult.totalDiscountedQaly);
+                    results.Supimab.hosps.push(patientResult.nHospitalisations);
+                    results.Supimab.timeH.push(patientResult.timeInHealthy);
+                    results.Supimab.timePS.push(patientResult.timeInPostStroke);
+                } catch (error) {
+                     console.error(`Error simulating Supimab patient ${i}:`, error);
+                     // Optionally skip this patient or handle error differently
+                 }
+                if ((i + 1) % 100 === 0) console.log(`Supimab patient ${i + 1}/${PARAMS.N_PATIENTS} simulated.`);
+            }
+             console.log("Simulations complete.");
+            return results;
+        }
+
+        // --- D3 Charting Functions ---
+        const chartMargin = { top: 10, right: 10, bottom: 30, left: 50 }; // Adjusted margins
+        const chartWidth = 250 - chartMargin.left - chartMargin.right; // Adjusted width for 4 charts
+        const chartHeight = 200 - chartMargin.top - chartMargin.bottom; // Adjusted height
+
+        // Tooltip
+        const tooltip = d3.select("#tooltip");
+
+        function createBarChart(containerId, data, yLabel) {
+            d3.select(containerId).select("svg").remove(); // Clear previous chart
+
+            const svg = d3.select(containerId)
+                .append("svg")
+                .attr("width", chartWidth + chartMargin.left + chartMargin.right)
+                .attr("height", chartHeight + chartMargin.top + chartMargin.bottom)
+                .append("g")
+                .attr("transform", `translate(${chartMargin.left},${chartMargin.top})`);
+
+            // X axis
+            const x = d3.scaleBand()
+                .range([0, chartWidth])
+                .domain(data.map(d => d.name))
+                .padding(0.3);
+
+            svg.append("g")
+                .attr("transform", `translate(0,${chartHeight})`)
+                .call(d3.axisBottom(x))
+                .selectAll("text")
+                .style("font-size", "10px") // Smaller labels if needed
+                .style("text-anchor", "middle");
+
+            // Y axis
+            // Ensure data values are numbers before calculating max
+            const numericValues = data.map(d => +d.value).filter(v => !isNaN(v) && isFinite(v));
+            const yMax = numericValues.length > 0 ? d3.max(numericValues) * 1.1 : 1; // Default max to 1 if no valid data
+
+            const y = d3.scaleLinear()
+                .domain([0, yMax > 0 ? yMax : 1]) // Ensure domain is at least [0, 1]
+                .range([chartHeight, 0]);
+
+            // Use appropriate format for Y axis
+            let yAxisFormat;
+            if (yLabel.includes("Cost")) {
+                yAxisFormat = d3.format("~s"); // Compact format (e.g., 10k, 100k)
+            } else if (yLabel.includes("QALYs") || yLabel.includes("Years")) {
+                 yAxisFormat = d3.format(".1f"); // 1 decimal place
+            } else {
+                 yAxisFormat = d3.format(".1f"); // Default format
+            }
+
+            const yAxis = svg.append("g").call(d3.axisLeft(y).ticks(5).tickFormat(yAxisFormat));
+
+            // Add gridlines
+            svg.append("g")
+                .attr("class", "grid")
+                .call(d3.axisLeft(y)
+                    .ticks(5)
+                    .tickSize(-chartWidth)
+                    .tickFormat("")
+                );
+
+            // Bars
+            svg.selectAll(".bar")
+                .data(data)
+                .enter()
+                .append("rect")
+                .attr("class", d => d.name === 'Dupimab' ? "bar-dupimab" : "bar-supimab")
+                .attr("x", d => x(d.name))
+                .attr("width", x.bandwidth())
+                .attr("y", d => y(0)) // Start animation from bottom
+                .attr("height", 0)    // Start animation from bottom
+                .attr("rx", 3) // Slightly smaller rounding
+                .attr("ry", 3)
+                .on("mouseover", function(event, d) {
+                    // Ensure value is a number before formatting
+                    const value = +d.value;
+                    if (isNaN(value)) return; // Don't show tooltip for invalid data
+
+                    tooltip.transition().duration(200).style("opacity", .9);
+                    let formatSpecifier = ".2f"; // Default format
+                    if (yLabel.includes("Cost")) formatSpecifier = "$,.0f";
+                    else if (yLabel.includes("Hospitalisations")) formatSpecifier = ".1f";
+
+                    tooltip.html(`${d.name}<br>${yLabel}: ${d3.format(formatSpecifier)(value)}`)
+                        .style("left", (event.pageX + 10) + "px") // Adjust tooltip position
+                        .style("top", (event.pageY - 15) + "px");
+                    d3.select(this).style("opacity", 0.7);
+                })
+                .on("mouseout", function(d) {
+                    tooltip.transition().duration(500).style("opacity", 0);
+                     d3.select(this).style("opacity", 1);
+                })
+                .transition() // Add animation
+                .duration(800)
+                 // Ensure value is a number before using in y() and height calculation
+                .attr("y", d => { const val = +d.value; return isNaN(val) ? y(0) : y(val); })
+                .attr("height", d => { const val = +d.value; return isNaN(val) ? 0 : Math.max(0, chartHeight - y(val)); }); // Ensure height is non-negative
+
+        }
+
+        // --- Event Listener and Display Logic ---
+        document.getElementById('run-simulation-btn').addEventListener('click', () => {
+            const button = document.getElementById('run-simulation-btn');
+            const loadingIndicator = document.getElementById('loading-indicator');
+            const resultsSection = document.getElementById('results-section');
+
+            button.disabled = true;
+            loadingIndicator.style.display = 'inline';
+            resultsSection.style.display = 'none'; // Hide previous results
+
+            // Run simulation asynchronously to avoid blocking UI
+            setTimeout(() => {
+                const results = runFullSimulation();
+
+                // Helper function to calculate mean, handling potential NaNs/Infinities
+                const calculateMean = (arr) => {
+                    const filteredArr = arr.filter(val => !isNaN(val) && isFinite(val));
+                    return filteredArr.length > 0 ? d3.mean(filteredArr) : 0;
+                };
+
+                // Calculate Averages using the helper function
+                const avgCostDupimab = calculateMean(results.Dupimab.costs);
+                const avgQalyDupimab = calculateMean(results.Dupimab.qalys);
+                const avgHospDupimab = calculateMean(results.Dupimab.hosps);
+                const avgTimeHDupimab = calculateMean(results.Dupimab.timeH);
+                const avgTimePSDupimab = calculateMean(results.Dupimab.timePS);
+
+                const avgCostSupimab = calculateMean(results.Supimab.costs);
+                const avgQalySupimab = calculateMean(results.Supimab.qalys);
+                const avgHospSupimab = calculateMean(results.Supimab.hosps);
+                const avgTimeHSupimab = calculateMean(results.Supimab.timeH);
+                const avgTimePSSupimab = calculateMean(results.Supimab.timePS);
+
+
+                // Calculate Incremental Results
+                const incCost = avgCostSupimab - avgCostDupimab;
+                const incQaly = avgQalySupimab - avgQalyDupimab;
+                const incHosp = avgHospSupimab - avgHospDupimab;
+                const incTimeH = avgTimeHSupimab - avgTimeHDupimab;
+
+                // Calculate ICER with checks for division by zero or negative QALY gains
+                let icer = "N/A";
+                if (incQaly > 0.0001) { // Use a small threshold for QALY gain
+                    icer = incCost / incQaly;
+                } else if (incQaly < -0.0001) {
+                    icer = "Supimab Dominated (Less QALYs)";
+                } else if (incCost > 0.01) { // Check cost difference if QALYs are ~equal
+                     icer = "Equal QALYs, Higher Cost";
+                } else if (incCost < -0.01) {
+                     icer = "Equal QALYs, Lower Cost (Supimab Dominant)";
+                } else {
+                     icer = "Equal Cost & QALYs";
+                }
+                const icerFormatted = typeof icer === 'number' ? `£${icer.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : icer;
+
+
+                // Display Results
+                document.getElementById('dupimab-cost').textContent = `£${avgCostDupimab.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+                document.getElementById('dupimab-qaly').textContent = avgQalyDupimab.toFixed(3);
+                document.getElementById('dupimab-hosp').textContent = avgHospDupimab.toFixed(2);
+                document.getElementById('dupimab-time-healthy').textContent = avgTimeHDupimab.toFixed(2);
+                document.getElementById('dupimab-time-poststroke').textContent = avgTimePSDupimab.toFixed(2);
+
+                document.getElementById('supimab-cost').textContent = `£${avgCostSupimab.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+                document.getElementById('supimab-qaly').textContent = avgQalySupimab.toFixed(3);
+                document.getElementById('supimab-hosp').textContent = avgHospSupimab.toFixed(2);
+                document.getElementById('supimab-time-healthy').textContent = avgTimeHSupimab.toFixed(2);
+                document.getElementById('supimab-time-poststroke').textContent = avgTimePSSupimab.toFixed(2);
+
+                document.getElementById('inc-cost').textContent = `£${incCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+                document.getElementById('inc-qaly').textContent = incQaly.toFixed(3);
+                document.getElementById('icer').textContent = icerFormatted;
+                document.getElementById('inc-hosp').textContent = incHosp.toFixed(2);
+                document.getElementById('inc-time-healthy').textContent = incTimeH.toFixed(2);
+
+
+                // Prepare data for charts
+                const costData = [{ name: 'Dupimab', value: avgCostDupimab }, { name: 'Supimab', value: avgCostSupimab }];
+                const qalyData = [{ name: 'Dupimab', value: avgQalyDupimab }, { name: 'Supimab', value: avgQalySupimab }];
+                const hospData = [{ name: 'Dupimab', value: avgHospDupimab }, { name: 'Supimab', value: avgHospSupimab }];
+                const timeHData = [{ name: 'Dupimab', value: avgTimeHDupimab }, { name: 'Supimab', value: avgTimeHSupimab }];
+
+
+                // Create Charts
+                createBarChart('#cost-chart', costData, 'Avg. Discounted Cost (£)');
+                createBarChart('#qaly-chart', qalyData, 'Avg. Discounted QALYs');
+                createBarChart('#hospitalisation-chart', hospData, 'Avg. Hospitalisations');
+                createBarChart('#healthy-time-chart', timeHData, 'Avg. Time Healthy (Years)');
+
+
+                // Show results and hide loading indicator
+                resultsSection.style.display = 'block';
+                loadingIndicator.style.display = 'none';
+                button.disabled = false;
+
+            }, 50); // Timeout allows UI to update before heavy computation
+        });
+
+    </script>
+
+</body>
+</html>
+
